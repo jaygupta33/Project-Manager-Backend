@@ -1,0 +1,103 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model PendingUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String?
+  otp          String
+  otpExpiresAt DateTime
+  createdAt    DateTime @default(now())
+}
+
+
+model User {
+  id        String   @id @default(cuid())
+  name      String ?
+  email     String   @unique
+  password  String ?
+  workspaces WorkspaceMember[]
+  tasks     Task[]   @relation("AssignedTasks")
+  comments  Comment[]
+  createdAt DateTime @default(now())
+}
+
+model Workspace {
+  id        String             @id @default(cuid())
+  name      String
+  projects  Project[]
+  members   WorkspaceMember[]
+  createdAt DateTime @default(now())
+}
+
+model WorkspaceMember {
+  id          String   @id @default(cuid())
+  role        Role
+  userId      String
+  workspaceId String
+  user        User      @relation(fields: [userId], references: [id])
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  tasks       Task[]
+  createdAt   DateTime @default(now())
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(MEDIUM)
+  dueDate     DateTime?
+  assigneeId  String?
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id])
+  assignee    User?     @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  comments    Comment[]
+  createdAt   DateTime @default(now())
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  userId    String
+  taskId    String
+  user      User   @relation(fields: [userId], references: [id])
+  task      Task   @relation(fields: [taskId], references: [id])
+  createdAt DateTime @default(now())
+}
