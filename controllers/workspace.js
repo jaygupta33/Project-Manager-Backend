@@ -8,21 +8,7 @@ const createWorkspace=async(req,res)=>{
   if (!name || !userId) {
     return res.status(400).json({ error: "Name and User ID are required" });
   }
-
-    /*   const [workspace, workspaceMember] = await prisma.$transaction([
-        prisma.workspace.create({
-          data: {
-            name,
-          },
-        }),
-        prisma.workspaceMember.create({
-          data: {
-            role: "ADMIN",
-            userId: userId,
-            workspaceId: workspace.id, // This links the member to the new workspace
-          },
-        }),
-      ]); */
+  
 try{
       const workspace = await prisma.workspace.create({
         data: {
@@ -118,7 +104,7 @@ try{
     }
   };
 
-  
+
 
 
   module.exports={createWorkspace,getWorkspaceMembers,getWorkspaces};
