@@ -158,5 +158,56 @@ const deleteTask = async (req, res) => {
   }
 };
 
+const addComment = async (req, res) => {
+  const { taskId } = req.params;
+  const { content } = req.body;
+  const userId = req.user.id;
 
-module.exports={createTask,getTasks,updateTask,deleteTask}
+  if (!content) {
+    return res.status(400).json({ error: "Comment content is required." });
+  }
+
+  try {
+ 
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        project: { include: { workspace: { include: { members: true } } } },
+      },
+    });
+
+    const isMember = task.project.workspace.members.some(
+      (member) => member.userId === userId
+    );
+
+    if (!isMember) {
+      return res.status(403).json({ error: "Access denied." });
+    }
+
+  
+    const comment = await prisma.comment.create({
+      data: {
+        content,
+    
+        user: { connect: { id: userId } },
+        task: { connect: { id: taskId } },
+      },
+   
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+          },
+        },
+      },
+    });
+
+    res.status(201).json({ message: "Comment added successfully.", comment });
+  } catch (error) {
+    console.error("Error adding comment:", error);
+    res.status(500).json({ error: "An internal server error occurred." });
+  }
+};
+
+module.exports={createTask,getTasks,updateTask,deleteTask,addComment}
