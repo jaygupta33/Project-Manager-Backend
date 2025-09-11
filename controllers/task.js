@@ -1,6 +1,5 @@
-const {PrismaClient}=require("@prisma/client");
+const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-
 
 const createTask = async (req, res) => {
   const { projectId } = req.params;
@@ -41,7 +40,6 @@ const createTask = async (req, res) => {
   }
 };
 
-
 const getTasks = async (req, res) => {
   const { projectId } = req.params;
   const userId = req.user.id;
@@ -69,6 +67,23 @@ const getTasks = async (req, res) => {
             id: true,
             username: true,
           },
+        },
+        project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        comments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
         },
       },
       orderBy: { createdAt: "asc" },
@@ -111,7 +126,32 @@ const updateTask = async (req, res) => {
       where: { id: taskId },
       data: {
         ...data, // This allows updating any field passed in the body
-        status: status ? status : undefined, // Update status if provided
+        ...(status && { status }), // Update status if provided
+      },
+      include: {
+        assignee: {
+          select: {
+            id: true,
+            username: true,
+          },
+        },
+        project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        comments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
       },
     });
 
@@ -163,12 +203,15 @@ const addComment = async (req, res) => {
   const { content } = req.body;
   const userId = req.user.id;
 
+  console.log("addComment called with:", { taskId, content, userId });
+
   if (!content) {
+    console.log("Error: Comment content is missing");
     return res.status(400).json({ error: "Comment content is required." });
   }
 
   try {
- 
+    console.log("Finding task with ID:", taskId);
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: {
@@ -176,23 +219,31 @@ const addComment = async (req, res) => {
       },
     });
 
+    console.log("Task found:", task ? "Yes" : "No");
+    if (!task) {
+      console.log("Error: Task not found");
+      return res.status(404).json({ error: "Task not found." });
+    }
+
     const isMember = task.project.workspace.members.some(
       (member) => member.userId === userId
     );
 
+    console.log("Is member:", isMember);
     if (!isMember) {
+      console.log("Error: Access denied for user:", userId);
       return res.status(403).json({ error: "Access denied." });
     }
 
-  
+    console.log("Creating comment with data:", { content, userId, taskId });
     const comment = await prisma.comment.create({
       data: {
         content,
-    
+
         user: { connect: { id: userId } },
         task: { connect: { id: taskId } },
       },
-   
+
       include: {
         user: {
           select: {
@@ -203,6 +254,7 @@ const addComment = async (req, res) => {
       },
     });
 
+    console.log("Comment created successfully:", comment);
     res.status(201).json({ message: "Comment added successfully.", comment });
   } catch (error) {
     console.error("Error adding comment:", error);
@@ -210,4 +262,53 @@ const addComment = async (req, res) => {
   }
 };
 
-module.exports={createTask,getTasks,updateTask,deleteTask,addComment}
+const getComments = async (req, res) => {
+  const { taskId } = req.params;
+  const userId = req.user.id;
+
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        project: { include: { workspace: { include: { members: true } } } },
+      },
+    });
+
+    if (!task) {
+      return res.status(404).json({ error: "Task not found." });
+    }
+
+    const isMember = task.project.workspace.members.some(
+      (member) => member.userId === userId
+    );
+
+    if (!isMember) {
+      return res.status(403).json({ error: "Access denied." });
+    }
+
+    const comments = await prisma.comment.findMany({
+      where: { taskId: taskId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+          },
+        },
+      },
+    });
+    res.status(200).json({ comments });
+  } catch (error) {
+    console.error("Error fetching comments:", error);
+    res.status(500).json({ error: "An internal server error occurred." });
+  }
+};
+
+module.exports = {
+  createTask,
+  getTasks,
+  updateTask,
+  deleteTask,
+  addComment,
+  getComments,
+};

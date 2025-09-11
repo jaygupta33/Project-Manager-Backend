@@ -3,7 +3,7 @@ const app=express();
 const {createServer}= require('http');
 const {Server}=require('socket.io');
 const httpServer = createServer(app);
-
+const cors  = require('cors');
 const authRouter=require('./routes/auth');
 const workspaceRouter=require('./routes/workspace');
 const projectRouter=require('./routes/project');
@@ -24,7 +24,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
-
+app.use(cors());
 app.get('/',async(req,res)=>{
     res.json("Hello World");
 })

@@ -58,6 +58,10 @@ enum Role {
 
 model Project {
   id          String   @id @default(cuid())
+  description String?
+  priority    Priority   @default(MEDIUM)
+  dueDate     DateTime? 
+  projectStatus ProjectStatus   @default(ACTIVE)
   name        String
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
@@ -84,6 +88,12 @@ enum TaskStatus {
   TODO
   IN_PROGRESS
   DONE
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ON_HOLD
 }
 
 enum Priority {
