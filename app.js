@@ -8,6 +8,7 @@ const authRouter=require('./routes/auth');
 const workspaceRouter=require('./routes/workspace');
 const projectRouter=require('./routes/project');
 const taskRouter=require('./routes/task');
+const teamRouter=require('./routes/team');
 const authenticateUser=require('./middleware/authentication');
 require("dotenv").config();
 
@@ -32,6 +33,7 @@ app.use('/api/v1/dashboard',authenticateUser,workspaceRouter);
 app.use('/api/v1/auth',authRouter);
 app.use('/api/v1/dashboard/workspaces',authenticateUser,projectRouter);
 app.use('/api/v1/dashboard/workspaces/:workspaceId/projects',authenticateUser,taskRouter);
+app.use('/api/v1/dashboard/workspaces',authenticateUser,teamRouter);
 
 
 io.on("connection", (socket) => {
