@@ -149,7 +149,12 @@ const getAllTasksInWorkspace = async (req, res) => {
       },
     });
 
-    const tasks = projects.flatMap((project) => project.tasks);
+    const tasks = projects.flatMap((project) =>
+      project.tasks.map((task) => ({
+        ...task,
+        projectName: project.name, // Add flat project name field for easier access
+      }))
+    );
     return res.status(200).json({ tasks });
   } catch (error) {
     console.error("Error fetching projects:", error);

@@ -4,7 +4,7 @@
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
-generator client {
+/* generator client {
   provider = "prisma-client-js"
 }
 
@@ -109,5 +109,149 @@ model Comment {
   taskId    String
   user      User   @relation(fields: [userId], references: [id])
   task      Task   @relation(fields: [taskId], references: [id])
+  createdAt DateTime @default(now())
+} */
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model PendingUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String?
+  otp          String
+  otpExpiresAt DateTime
+  createdAt    DateTime @default(now())
+}
+
+model User {
+  id             String        @id @default(cuid())
+  username       String        @unique
+  email          String        @unique
+  password       String
+  workspaces     WorkspaceMember[]
+  tasks          Task[]        @relation("AssignedTasks")
+  comments       Comment[]
+  teamMemberships TeamMember[] // New relation to TeamMember
+  createdAt      DateTime      @default(now())
+}
+
+// New model for teams
+model Team {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  members   TeamMember[] // Junction table for team members
+  projects  ProjectTeam[] // Junction table for projects assigned to this team
+  createdAt DateTime     @default(now())
+}
+
+// New junction table for Team and User relationship
+model TeamMember {
+  id      String   @id @default(cuid())
+  teamId  String
+  userId  String
+  team    Team     @relation(fields: [teamId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+}
+
+// New junction table for Project and Team relationship
+model ProjectTeam {
+  id        String   @id @default(cuid())
+  projectId String
+  teamId    String
+  role      Role     @default(MEMBER) // Role can be specific to this team-project assignment
+  project   Project  @relation(fields: [projectId], references: [id])
+  team      Team     @relation(fields: [teamId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, teamId])
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  projects  Project[]
+  members   WorkspaceMember[]
+  createdAt DateTime @default(now())
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  role        Role
+  userId      String
+  workspaceId String
+  user        User      @relation(fields: [userId], references: [id])
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+model Project {
+  id            String          @id @default(cuid())
+  description   String?
+  priority      Priority        @default(MEDIUM)
+  dueDate       DateTime?
+  projectStatus ProjectStatus   @default(ACTIVE)
+  name          String
+  workspaceId   String
+  workspace     Workspace       @relation(fields: [workspaceId], references: [id])
+  tasks         Task[]
+  teams         ProjectTeam[]   // New relation to the junction table
+  createdAt     DateTime        @default(now())
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(MEDIUM)
+  dueDate     DateTime?
+  assigneeId  String?
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id])
+  assignee    User?      @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  comments    Comment[]
+  createdAt   DateTime   @default(now())
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ON_HOLD
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  userId    String
+  taskId    String
+  user      User     @relation(fields: [userId], references: [id])
+  task      Task     @relation(fields: [taskId], references: [id])
   createdAt DateTime @default(now())
 }

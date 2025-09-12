@@ -3,7 +3,8 @@ const prisma = new PrismaClient();
 
 const createTask = async (req, res) => {
   const { projectId } = req.params;
-  const { title, description, assigneeId } = req.body;
+  const { title, description, assigneeId, status, priority, dueDate } =
+    req.body;
   const userId = req.user.id;
 
   if (!title) {
@@ -30,10 +31,49 @@ const createTask = async (req, res) => {
         description,
         assignee: assigneeId ? { connect: { id: assigneeId } } : undefined,
         project: { connect: { id: projectId } },
+        status: status || "TODO",
+        priority: priority || "MEDIUM",
+        dueDate: dueDate ? new Date(dueDate) : undefined,
+      },
+      include: {
+        assignee: {
+          select: {
+            id: true,
+            username: true,
+          },
+        },
+        project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        comments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
       },
     });
 
-    res.status(201).json({ message: "Task created successfully.", task });
+    // Add flat projectName field for easier access
+    const taskWithProjectName = {
+      ...task,
+      projectName: task.project.name,
+    };
+
+    res
+      .status(201)
+      .json({
+        message: "Task created successfully.",
+        task: taskWithProjectName,
+      });
   } catch (error) {
     console.error("Error creating task:", error);
     res.status(500).json({ error: "An internal server error occurred." });
@@ -89,7 +129,13 @@ const getTasks = async (req, res) => {
       orderBy: { createdAt: "asc" },
     });
 
-    res.status(200).json({ tasks });
+    // Add flat projectName field for easier access
+    const tasksWithProjectName = tasks.map((task) => ({
+      ...task,
+      projectName: task.project.name,
+    }));
+
+    res.status(200).json({ tasks: tasksWithProjectName });
   } catch (error) {
     console.error("Error fetching tasks:", error);
     res.status(500).json({ error: "An internal server error occurred." });
@@ -155,9 +201,18 @@ const updateTask = async (req, res) => {
       },
     });
 
+    // Add flat projectName field for easier access
+    const updatedTaskWithProjectName = {
+      ...updatedTask,
+      projectName: updatedTask.project.name,
+    };
+
     res
       .status(200)
-      .json({ message: "Task updated successfully.", task: updatedTask });
+      .json({
+        message: "Task updated successfully.",
+        task: updatedTaskWithProjectName,
+      });
   } catch (error) {
     console.error("Error updating task:", error);
     res.status(500).json({ error: "An internal server error occurred." });
@@ -180,6 +235,10 @@ const deleteTask = async (req, res) => {
       },
     });
 
+    if (!task) {
+      return res.status(404).json({ error: "Task not found." });
+    }
+
     const isMember = task.project.workspace.members.some(
       (member) => member.userId === userId
     );
@@ -188,7 +247,12 @@ const deleteTask = async (req, res) => {
       return res.status(403).json({ error: "Access denied." });
     }
 
-    // 2. Delete the Task
+    // 2. Delete related comments first (cascade delete)
+    await prisma.comment.deleteMany({
+      where: { taskId: taskId },
+    });
+
+    // 3. Delete the Task
     await prisma.task.delete({ where: { id: taskId } });
 
     res.status(200).json({ message: "Task deleted successfully." });
