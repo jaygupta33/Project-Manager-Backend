@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
+const { get } = require("http");
 
 const sendEmailOtp = async (req, res) => {
   const transporter = nodemailer.createTransport({
@@ -140,8 +141,110 @@ const login = async (req, res) => {
   res.status(200).json({ user: { username: user.username }, token });
 };
 
+const getInvitedUsers = async (req, res) => {
+   const { token } = req.query;
+  if (token) {
+    try {
+      // Step 1: Find the pending user using the token
+      // You must hash the token from the query to compare it with the hashed token in your database
+      const hashedToken = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex");
+
+      const pendingUser = await prisma.pendingUser.findFirst({
+        where: {
+          otp: hashedToken,
+          otpExpiresAt: {
+            gt: new Date(), // Check if the token has not expired
+          },
+        },
+      });
+
+      if (!pendingUser) {
+        return res.status(404).send("Invalid or expired invitation link.");
+      }
+
+      // Step 2: Render the sign-up page with the pre-filled data
+      res.render("signup", { email: pendingUser.email, token: token });
+    } catch (error) {
+      console.error(error);
+      res.status(500).send("An error occurred.");
+    }
+  } else {
+    // If no token is present, serve the standard signup form
+    res.render("signup", { email: "", token: "" });
+  }
+}
+
+ const signUpInvitedUser = async (req, res) => {
+  const { email, password, username, token } = req.body;
+
+  try {
+    // Step 1: Validate the token and find the pending user again
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const pendingUser = await prisma.pendingUser.findFirst({
+      where: {
+        otp: hashedToken,
+        otpExpiresAt: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!pendingUser) {
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired invitation token." });
+    }
+    
+       const salt = await bcrypt.genSalt(10);
+       const hashedPassword = await bcrypt.hash(password, salt);
+    // Step 2: Use a transaction to perform all database operations atomically
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the new User
+      const newUser = await tx.user.create({
+        data: {
+          email,
+          username,
+          password: hashedPassword,
+        },
+      });
+
+      // Create the WorkspaceMember record
+      await tx.workspaceMember.create({
+        data: {
+          userId: newUser.id,
+          workspaceId: pendingUser.workspaceId,
+          role: "MEMBER",
+        },
+      });
+
+      // Delete the pending user record to prevent re-use
+      await tx.pendingUser.delete({
+        where: { id: pendingUser.id },
+      });
+
+      return newUser;
+    });
+
+    res
+      .status(201)
+      .json({
+        message: "Account created and you have been added to the workspace.",
+        user: result,
+      });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "An error occurred during signup." });
+  }
+}
+
 module.exports = {
   sendEmailOtp,
   verifyOtp,
   login,
+  getInvitedUsers,
+  signUpInvitedUser
 };

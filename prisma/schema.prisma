@@ -126,6 +126,7 @@ model PendingUser {
   id           String   @id @default(uuid())
   email        String   @unique
   name         String?
+  workspaceId  String?
   otp          String
   otpExpiresAt DateTime
   createdAt    DateTime @default(now())
@@ -192,6 +193,23 @@ model WorkspaceMember {
   workspaceId String
   user        User      @relation(fields: [userId], references: [id])
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+model PendingWorkspaceMember {
+  id          String    @id @default(cuid())
+  userId      String
+  workspaceId String
+  status      InvitationStatus @default(PENDING)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, workspaceId])
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
 }
 
 enum Role {
