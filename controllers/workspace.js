@@ -9,7 +9,7 @@ const createWorkspace = async (req, res) => {
   if (!name || !userId) {
     return res.status(400).json({ error: "Name and User ID are required" });
   }
-
+   
   try {
     const workspace = await prisma.workspace.create({
       data: {
@@ -255,9 +255,79 @@ const getWorkspaces = async (req, res) => {
   }
 };
 
+const openInvite = async (req, res) => {
+  const { invitationId } = req.params;
+
+  try {
+    const pendingInvite = await prisma.pendingWorkspaceMember.findUnique({
+      where: { id: invitationId },
+      include: {
+        workspace: true,
+        user: true,
+      },
+    });
+
+    if (!pendingInvite || pendingInvite.status !== 'PENDING') {
+      return res.status(404).send('Invalid or expired invitation link.');
+    }
+
+    // Render a confirmation page for the user to accept/decline
+    res.render('acceptInvitation', {
+      invitationId: pendingInvite.id,
+      workspaceName: pendingInvite.workspace.name,
+      userName: pendingInvite.user.username,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('An error occurred.');
+  }
+
+}
+
+const acceptInvite = async (req, res) => {
+  const { invitationId } = req.params;
+  const userId = req.user.id;
+
+  try {
+      const pendingInvite = await prisma.pendingWorkspaceMember.findUnique({
+      where: { id: invitationId },
+    });
+
+    // Security check: Ensure the authenticated user matches the invited user
+    if (!pendingInvite || pendingInvite.userId !== userId) {
+      return res.status(403).json({ message: 'Unauthorized action.' });
+    }
+
+    // Use a transaction for an atomic operation
+    await prisma.$transaction(async (tx) => {
+      // Create the WorkspaceMember record
+      await tx.workspaceMember.create({
+        data: {
+          userId: pendingInvite.userId,
+          workspaceId: pendingInvite.workspaceId,
+          role: 'MEMBER', // Default role for invited members
+        },
+      });
+
+      // Update the status of the pending invitation to accepted
+      await tx.pendingWorkspaceMember.update({
+        where: { id: invitationId },
+        data: { status: 'ACCEPTED' },
+      });
+    });
+
+    res.status(200).json({ message: 'Invitation accepted successfully.' });
+}  catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred.' });
+  }
+}
+
 module.exports = {
   createWorkspace,
   getWorkspaceMembers,
   getWorkspaces,
   addWorkspaceMember,
+  openInvite,
+  acceptInvite,
 };
