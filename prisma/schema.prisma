@@ -138,6 +138,7 @@ model User {
   email          String        @unique
   password       String
   workspaces     WorkspaceMember[]
+  projects       ProjectMember[] // New relation to ProjectMember
   tasks          Task[]        @relation("AssignedTasks")
   comments       Comment[]
   teamMemberships TeamMember[] // New relation to TeamMember
@@ -149,7 +150,6 @@ model Team {
   id        String       @id @default(cuid())
   name      String       @unique
   members   TeamMember[] // Junction table for team members
-  projects  ProjectTeam[] // Junction table for projects assigned to this team
   createdAt DateTime     @default(now())
 }
 
@@ -166,16 +166,16 @@ model TeamMember {
 }
 
 // New junction table for Project and Team relationship
-model ProjectTeam {
+model ProjectMember {
   id        String   @id @default(cuid())
   projectId String
-  teamId    String
+  userId    String
   role      Role     @default(MEMBER) // Role can be specific to this team-project assignment
   project   Project  @relation(fields: [projectId], references: [id])
-  team      Team     @relation(fields: [teamId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
 
-  @@unique([projectId, teamId])
+  @@unique([projectId, userId])
 }
 
 model Workspace {
@@ -227,7 +227,7 @@ model Project {
   workspaceId   String
   workspace     Workspace       @relation(fields: [workspaceId], references: [id])
   tasks         Task[]
-  teams         ProjectTeam[]   // New relation to the junction table
+  members      ProjectMember[]   // New relation to the junction table
   createdAt     DateTime        @default(now())
 }
 

@@ -6,6 +6,6 @@ router.post('/workspaces/create',createWorkspace);
 router.get('/workspaces/:workspaceId/members', getWorkspaceMembers);
 router.get('/workspaces', getWorkspaces);
 router.post('/workspaces/:workspaceId/members/add', addWorkspaceMember);
-router.get('/workspaces/:invitationId/accept', openInvite);
-router.post('/workspaces/:invitationId/accept', acceptInvite);
+router.get('/workspaces/invites/:invitationId/accept', openInvite);
+router.post('/workspaces/invites/:invitationId/accept', acceptInvite);
 module.exports = router;
